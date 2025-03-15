@@ -11,14 +11,13 @@ import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Optional;
 
 @Service
 public class UserService implements UserDetailsService {
 
     @Autowired
     private UserRepository userRepository;
-
-    private Map<String, String> refreshTokenStore = new HashMap<>();
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
@@ -34,16 +33,8 @@ public class UserService implements UserDetailsService {
         userRepository.save(user);
     }
 
-    public void saveRefreshToken(String username, String token) {
-        refreshTokenStore.put(username, token);
-    }
-
-    public String getRefreshToken(String username) {
-        return refreshTokenStore.get(username);
-    }
-
-    public void deleteRefreshToken(String username) {
-        refreshTokenStore.remove(username);
+    public Optional<User> findByUsername(String username) {
+        return userRepository.findByUsername(username);
     }
 }
 

@@ -1,6 +1,8 @@
     package com.example.demo.controller;
 
+    import com.example.demo.model.RefreshToken;
     import com.example.demo.model.User;
+    import com.example.demo.service.RefreshTokenService;
     import com.example.demo.service.UserService;
     import com.example.demo.util.JwtUtil;
     import io.jsonwebtoken.ExpiredJwtException;
@@ -23,6 +25,7 @@
     import org.springframework.web.bind.annotation.RestController;
 
     import java.util.Map;
+    import java.util.Optional;
     import java.util.Set;
 
     @RestController
@@ -37,6 +40,8 @@
         private UserService userService;
         @Autowired
         PasswordEncoder passwordEncoder;
+        @Autowired
+        RefreshTokenService refreshTokenService;
 
         @PostMapping("/register")
         public ResponseEntity<Map<String, String>> register(@RequestBody User user) {
@@ -54,11 +59,14 @@
                     new UsernamePasswordAuthenticationToken(user.getUsername(), user.getPassword())
             );
             UserDetails userDetails = userService.loadUserByUsername(user.getUsername());
+            User persistedUser = userService.findByUsername(user.getUsername())
+                    .orElseThrow(() -> new RuntimeException("User not found"));
 
             String accessToken = jwtUtil.generateAccessToken(userDetails);
-            String refreshToken = jwtUtil.generateRefreshToken(userDetails);
-
-            userService.saveRefreshToken(userDetails.getUsername(), refreshToken);
+            RefreshToken refreshToken = refreshTokenService.
+                    createRefreshToken(persistedUser, jwtUtil.generateRefreshToken(userDetails));
+            System.out.println("access token = " + accessToken);
+            System.out.println("refresh token = " + refreshToken);
 
             //Create cookie
             Cookie cookie = new Cookie("access_token", accessToken);
@@ -69,7 +77,7 @@
             response.addCookie(cookie);
 
             //Refresh token cookie
-            Cookie refreshTokenCookie = new Cookie("refresh_token", refreshToken);
+            Cookie refreshTokenCookie = new Cookie("refresh_token", refreshToken.getToken());
             refreshTokenCookie.setHttpOnly(true);
             refreshTokenCookie.setSecure(true);
             refreshTokenCookie.setPath("/");
@@ -78,7 +86,7 @@
 
             return ResponseEntity.ok(Map.of(
                     "access_token", accessToken,
-                    "refresh_token", refreshToken
+                    "refresh_token", refreshToken.getToken()
             ));
         }
 
@@ -86,21 +94,22 @@
         public ResponseEntity<Map<String, String>> logout(
                 HttpServletRequest request,
                 HttpServletResponse response) {
-
             SecurityContextHolder.clearContext();
 
             String refreshToken = null;
             Cookie[] cookies = request.getCookies();
             if (cookies != null) {
                 for (Cookie cookie : cookies) {
-                    refreshToken = cookie.getValue();
-                    String username = jwtUtil.extractUsername(refreshToken);
-                    userService.deleteRefreshToken(username);
-                    break;
+                    if (cookie.getName().equals("refresh_token")) {
+                        refreshToken = cookie.getValue();
+                        break;
+                    }
                 }
             }
-            else {
-                return ResponseEntity.ok(Map.of("message", "Already logged out"));
+
+            if (refreshToken != null) {
+                Optional<RefreshToken> tokenOpt = refreshTokenService.findByToken(refreshToken);
+                tokenOpt.ifPresent(token -> refreshTokenService.revokeToken(token));
             }
 
             deleteCookie(response, "access_token");
@@ -124,22 +133,22 @@
                 }
             }
 
+            if (refreshToken == null) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Refresh token is missing"));
+            }
+
+            Optional<RefreshToken> storedRefreshToken = refreshTokenService.findByToken(refreshToken);
+            if (storedRefreshToken.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Invalid refresh token"));
+            }
+
+            if (!refreshTokenService.isTokenValid(refreshToken)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Invalid refresh token"));
+            }
+            refreshTokenService.verifyExpiration(storedRefreshToken.get());
+
             String username = jwtUtil.extractUsername(refreshToken);
             UserDetails userDetails = userService.loadUserByUsername(username);
-
-            if (refreshToken == null || !jwtUtil.isTokenValid(refreshToken, userDetails)) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("Error", "Invalid refresh token"));
-            }
-            System.out.println("REFRESH TOKEN IS VALID");
-
-            String storedRefreshToken = userService.getRefreshToken(username);
-            System.out.println("Stored refresh token: " + storedRefreshToken);
-            if (!refreshToken.equals(storedRefreshToken)) {
-                System.out.println("didn't match");
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("Error", "Refresh token mismatch"));
-            }
-            System.out.println("REFRESH TOKENS ARE EQUALS");
-
             String newAccessToken = jwtUtil.generateAccessToken(userDetails);
 
             Cookie accessTokenCookie = new Cookie("access_token", newAccessToken);
