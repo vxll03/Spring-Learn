@@ -14,7 +14,7 @@
 ## **⭐ Existing endpoints**
 
 <div>
-  <h3>Auth</h3>
+  Auth
 
   <ul>
   <li>/api/auth/register</li>
@@ -24,7 +24,7 @@
 </div>
 
 <div>
-  <h3>Testing</h3>
+  Testing
   <ul>
     <li>/api/greetings</li>
   </ul>
