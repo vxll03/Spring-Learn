@@ -3,6 +3,13 @@
   JWT authentication
 </h1>
 
+<div align="center">
+  
+![JWT](https://img.shields.io/badge/JWT-black?style=for-the-badge&logo=JSON%20web%20tokens)
+![Spring](https://img.shields.io/badge/spring-%236DB33F.svg?style=for-the-badge&logo=spring&logoColor=white)
+
+</div>
+
 ---
 
 <h2>Existing endpoints</h2>
