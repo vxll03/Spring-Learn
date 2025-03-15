@@ -34,7 +34,6 @@
 
 ## **📝 TODO**
 
-- Change Refresh token storage to Database
 - Rate limiting
 - Caching
 - Logging
