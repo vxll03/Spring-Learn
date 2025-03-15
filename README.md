@@ -1,6 +1,5 @@
 <h1 align="center">
-  <img height=50px src="https://img.icons8.com/?size=96&id=rHpveptSuwDz&format=png">
-  JWT authentication
+  Spring Learn Repo
 </h1>
 
 <div align="center">
@@ -12,7 +11,7 @@
 
 ---
 
-<h2>Existing endpoints</h2>
+## **⭐ Existing endpoints**
 
 <div>
   <h3>Auth</h3>
@@ -33,10 +32,29 @@
 
 ---
 
-<h2>TODO</h2>
+## **📝 TODO**
 
 - Change Refresh token storage to Database
 - Rate limiting
 - Caching
 - Logging
 - Documentation
+
+---
+
+## **🚀 How to run**
+
+- **Clone repository**
+```git
+git clone https://github.com/vxll03/Spring-Security-Learn
+```
+
+- **Build maven**
+```maven
+mvn clean install
+```
+
+- **Start project**
+```maven
+mvn spring-boot start
+```
