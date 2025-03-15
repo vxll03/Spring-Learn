@@ -1,79 +1,172 @@
-package com.example.demo.controller;
+    package com.example.demo.controller;
 
-import com.example.demo.model.User;
-import com.example.demo.service.UserService;
-import com.example.demo.util.JwtUtil;
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletResponse;
-import org.apache.coyote.Response;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.authentication.AuthenticationManager;
-import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
-import org.springframework.security.crypto.password.PasswordEncoder;
-import org.springframework.web.bind.annotation.*;
+    import com.example.demo.model.User;
+    import com.example.demo.service.UserService;
+    import com.example.demo.util.JwtUtil;
+    import io.jsonwebtoken.ExpiredJwtException;
+    import io.jsonwebtoken.JwtException;
+    import jakarta.servlet.ServletRequest;
+    import jakarta.servlet.http.Cookie;
+    import jakarta.servlet.http.HttpServletRequest;
+    import jakarta.servlet.http.HttpServletResponse;
+    import org.springframework.beans.factory.annotation.Autowired;
+    import org.springframework.http.HttpStatus;
+    import org.springframework.http.ResponseEntity;
+    import org.springframework.security.authentication.AuthenticationManager;
+    import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+    import org.springframework.security.core.context.SecurityContextHolder;
+    import org.springframework.security.core.userdetails.UserDetails;
+    import org.springframework.security.crypto.password.PasswordEncoder;
+    import org.springframework.web.bind.annotation.PostMapping;
+    import org.springframework.web.bind.annotation.RequestBody;
+    import org.springframework.web.bind.annotation.RequestMapping;
+    import org.springframework.web.bind.annotation.RestController;
 
-import java.util.Map;
-import java.util.Set;
+    import java.util.Map;
+    import java.util.Set;
 
-@RestController
-@RequestMapping("/api/auth")
-public class AuthController {
+    @RestController
+    @RequestMapping("/api/auth")
+    public class AuthController {
 
-    @Autowired
-    private AuthenticationManager authenticationManager;
-    @Autowired
-    private JwtUtil jwtUtil;
-    @Autowired
-    private UserService userService;
-    @Autowired
-    PasswordEncoder passwordEncoder;
+        @Autowired
+        private AuthenticationManager authenticationManager;
+        @Autowired
+        private JwtUtil jwtUtil;
+        @Autowired
+        private UserService userService;
+        @Autowired
+        PasswordEncoder passwordEncoder;
 
-    @PostMapping("/register")
-    public ResponseEntity<Map<String, String>> register(@RequestBody User user) {
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
-        user.setRoles(Set.of("ROLE_USER"));
-        userService.save(user);
-        return ResponseEntity.ok(Map.of("message", "User created"));
+        @PostMapping("/register")
+        public ResponseEntity<Map<String, String>> register(@RequestBody User user) {
+            user.setPassword(passwordEncoder.encode(user.getPassword()));
+            user.setRoles(Set.of("ROLE_USER"));
+            userService.save(user);
+            return ResponseEntity.ok(Map.of("message", "User created"));
+        }
+
+
+        @PostMapping("/login")
+        public ResponseEntity<Map<String, String>> login(@RequestBody User user, HttpServletResponse response)
+                throws Exception {
+            authenticationManager.authenticate(
+                    new UsernamePasswordAuthenticationToken(user.getUsername(), user.getPassword())
+            );
+            UserDetails userDetails = userService.loadUserByUsername(user.getUsername());
+
+            String accessToken = jwtUtil.generateAccessToken(userDetails);
+            String refreshToken = jwtUtil.generateRefreshToken(userDetails);
+
+            userService.saveRefreshToken(userDetails.getUsername(), refreshToken);
+
+            //Create cookie
+            Cookie cookie = new Cookie("access_token", accessToken);
+            cookie.setHttpOnly(true);
+            cookie.setSecure(true);
+            cookie.setPath("/");
+            cookie.setMaxAge((int) (jwtUtil.getACCESS_EXPIRATION_TIME() / 1000));
+            response.addCookie(cookie);
+
+            //Refresh token cookie
+            Cookie refreshTokenCookie = new Cookie("refresh_token", refreshToken);
+            refreshTokenCookie.setHttpOnly(true);
+            refreshTokenCookie.setSecure(true);
+            refreshTokenCookie.setPath("/");
+            refreshTokenCookie.setMaxAge((int) (jwtUtil.getREFRESH_EXPIRATION_TIME() / 1000));
+            response.addCookie(refreshTokenCookie);
+
+            return ResponseEntity.ok(Map.of(
+                    "access_token", accessToken,
+                    "refresh_token", refreshToken
+            ));
+        }
+
+        @PostMapping("/logout")
+        public ResponseEntity<Map<String, String>> logout(
+                HttpServletRequest request,
+                HttpServletResponse response) {
+
+            SecurityContextHolder.clearContext();
+
+            String refreshToken = null;
+            Cookie[] cookies = request.getCookies();
+            if (cookies != null) {
+                for (Cookie cookie : cookies) {
+                    refreshToken = cookie.getValue();
+                    String username = jwtUtil.extractUsername(refreshToken);
+                    userService.deleteRefreshToken(username);
+                    break;
+                }
+            }
+            else {
+                return ResponseEntity.ok(Map.of("message", "Already logged out"));
+            }
+
+            deleteCookie(response, "access_token");
+            deleteCookie(response, "refresh_token");
+
+            return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
+        }
+
+        @PostMapping("/refresh")
+        public ResponseEntity<Map<String, String>> refreshToken(
+                HttpServletRequest request,
+                HttpServletResponse response) {
+            String refreshToken = null;
+            Cookie[] cookies = request.getCookies();
+            if (cookies != null) {
+                for (Cookie cookie : cookies) {
+                    if (cookie.getName().equals("refresh_token")) {
+                        refreshToken = cookie.getValue();
+                        break;
+                    }
+                }
+            }
+
+            String username = jwtUtil.extractUsername(refreshToken);
+            UserDetails userDetails = userService.loadUserByUsername(username);
+
+            if (refreshToken == null || !jwtUtil.isTokenValid(refreshToken, userDetails)) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("Error", "Invalid refresh token"));
+            }
+            System.out.println("REFRESH TOKEN IS VALID");
+
+            String storedRefreshToken = userService.getRefreshToken(username);
+            System.out.println("Stored refresh token: " + storedRefreshToken);
+            if (!refreshToken.equals(storedRefreshToken)) {
+                System.out.println("didn't match");
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("Error", "Refresh token mismatch"));
+            }
+            System.out.println("REFRESH TOKENS ARE EQUALS");
+
+            String newAccessToken = jwtUtil.generateAccessToken(userDetails);
+
+            Cookie accessTokenCookie = new Cookie("access_token", newAccessToken);
+            accessTokenCookie.setHttpOnly(true);
+            accessTokenCookie.setSecure(true);
+            accessTokenCookie.setPath("/");
+            accessTokenCookie.setMaxAge((int) (jwtUtil.getACCESS_EXPIRATION_TIME() / 1000));
+            response.addCookie(accessTokenCookie);
+
+            try {
+                return ResponseEntity.ok(Map.of("access_token", newAccessToken));
+
+            } catch (ExpiredJwtException ex) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "Refresh token has expired"));
+            } catch (JwtException | IllegalArgumentException ex) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("error", "Invalid refresh token"));
+            }
+        }
+
+        private void deleteCookie(HttpServletResponse response, String cookieName) {
+            Cookie cookie = new Cookie(cookieName, null);
+            cookie.setHttpOnly(true);
+            cookie.setSecure(true);
+            cookie.setPath("/");
+            cookie.setMaxAge(0);
+            response.addCookie(cookie);
+        }
     }
-
-
-    @PostMapping("/login")
-    public ResponseEntity<Map<String, String>> login(@RequestBody User user, HttpServletResponse response)
-            throws Exception {
-        authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(user.getUsername(), user.getPassword())
-        );
-        UserDetails userDetails = userService.loadUserByUsername(user.getUsername());
-        String token = jwtUtil.generateToken(userDetails);
-
-
-        //Create cookie
-        Cookie cookie = new Cookie("jwt", token);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(true);
-        cookie.setPath("/");
-        cookie.setMaxAge((int) (jwtUtil.getEXPIRATION_TIME() / 1000));
-
-        response.addCookie(cookie);
-
-        return ResponseEntity.ok(Map.of("message", "Login successful"));
-    }
-
-    @PostMapping("/logout")
-    public ResponseEntity<Map<String, String>> logout(HttpServletResponse response) {
-        SecurityContextHolder.clearContext();
-
-        Cookie cookie = new Cookie("jwt", null);
-        cookie.setHttpOnly(true);
-        cookie.setSecure(true);
-        cookie.setPath("/");
-        cookie.setMaxAge(0);
-
-        response.addCookie(cookie);
-
-        return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
-    }
-}

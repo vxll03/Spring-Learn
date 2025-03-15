@@ -43,39 +43,41 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             return;
         }
 
-        String jwt = null;
+        String access_token = null;
         Cookie[] cookies = request.getCookies();
         if (cookies != null) {
             for (Cookie cookie : cookies) {
-                jwt = cookie.getValue();
-                break;
+                if (cookie.getName().equals("access_token")) {
+                    access_token = cookie.getValue();
+                    break;
+                }
             }
         }
 
-        if (jwt == null) {
-            response.sendError(HttpStatus.UNAUTHORIZED.value(), "Missing JWT Token");
+        if (access_token == null) {
+            response.sendError(HttpStatus.UNAUTHORIZED.value(), "Missing Access Token");
             return;
         }
 
 
         try {
-            String username = jwtUtil.extractUsername(jwt);
+            String username = jwtUtil.extractUsername(access_token);
             UserDetails userDetails = userService.loadUserByUsername(username);
 
-            if (jwtUtil.isTokenValid(jwt, userDetails)) {
+            if (jwtUtil.isTokenValid(access_token, userDetails)) {
                 UsernamePasswordAuthenticationToken authToken =
                         new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
                 authToken.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authToken);
             } else {
-                response.sendError(HttpStatus.UNAUTHORIZED.value(), "Invalid JWT Token");
+                response.sendError(HttpStatus.UNAUTHORIZED.value(), "Invalid Access Token");
                 return;
             }
         } catch (ExpiredJwtException ex) {
-            response.sendError(HttpStatus.UNAUTHORIZED.value(), "JWT Token has expired");
+            response.sendError(HttpStatus.UNAUTHORIZED.value(), "Access Token has expired");
             return;
         } catch (JwtException | IllegalArgumentException ex) {
-            response.sendError(HttpStatus.UNAUTHORIZED.value(), "Invalid JWT Token");
+            response.sendError(HttpStatus.UNAUTHORIZED.value(), "Invalid Access Token");
             return;
         }
         chain.doFilter(request, response);

@@ -9,17 +9,22 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
+import java.util.HashMap;
+import java.util.Map;
+
 @Service
 public class UserService implements UserDetailsService {
 
     @Autowired
     private UserRepository userRepository;
 
+    private Map<String, String> refreshTokenStore = new HashMap<>();
+
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
         return userRepository.findByUsername(username)
                 .map(user -> new org.springframework.security.core.userdetails.User(
-                  user.getUsername(), user.getPassword(), user.getRoles().stream()
+                        user.getUsername(), user.getPassword(), user.getRoles().stream()
                         .map(SimpleGrantedAuthority::new)
                         .toList()))
                 .orElseThrow(() -> new UsernameNotFoundException(String.format("User not found: %s", username)));
@@ -28,4 +33,17 @@ public class UserService implements UserDetailsService {
     public void save(User user) {
         userRepository.save(user);
     }
+
+    public void saveRefreshToken(String username, String token) {
+        refreshTokenStore.put(username, token);
+    }
+
+    public String getRefreshToken(String username) {
+        return refreshTokenStore.get(username);
+    }
+
+    public void deleteRefreshToken(String username) {
+        refreshTokenStore.remove(username);
+    }
 }
+

@@ -21,17 +21,29 @@ public class JwtUtil {
     String SECRET_KEY;
 
     @Getter
-    @Value("${testing.app.expiration}")
-    Long EXPIRATION_TIME;
+    @Value("${testing.app.access-token-expiration}")
+    Long ACCESS_EXPIRATION_TIME;
 
-    public String generateToken(UserDetails userDetails) {
+    @Getter
+    @Value("${testing.app.refresh-token-expiration}")
+    Long REFRESH_EXPIRATION_TIME;
+
+    public String generateAccessToken(UserDetails userDetails) {
+        return generateToken(userDetails, ACCESS_EXPIRATION_TIME);
+    }
+
+    public String generateRefreshToken(UserDetails userDetails) {
+        return generateToken(userDetails, REFRESH_EXPIRATION_TIME);
+    }
+
+    private String generateToken(UserDetails userDetails, Long expiration) {
         Map<String, Object> claims = new HashMap<>();
         SecretKey key = getSigningKey();
         return Jwts.builder()
                 .claims(claims)
                 .subject(userDetails.getUsername())
                 .issuedAt(new Date(System.currentTimeMillis()))
-                .expiration(new Date(System.currentTimeMillis() + EXPIRATION_TIME))
+                .expiration(new Date(System.currentTimeMillis() + expiration))
                 .signWith(key)
                 .compact();
     }
