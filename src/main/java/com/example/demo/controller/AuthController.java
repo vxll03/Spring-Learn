@@ -12,6 +12,7 @@
     import jakarta.servlet.http.HttpServletRequest;
     import jakarta.servlet.http.HttpServletResponse;
     import org.springframework.beans.factory.annotation.Autowired;
+    import org.springframework.beans.factory.annotation.Value;
     import org.springframework.http.HttpStatus;
     import org.springframework.http.ResponseEntity;
     import org.springframework.security.authentication.AuthenticationManager;
@@ -20,10 +21,7 @@
     import org.springframework.security.core.context.SecurityContextHolder;
     import org.springframework.security.core.userdetails.UserDetails;
     import org.springframework.security.crypto.password.PasswordEncoder;
-    import org.springframework.web.bind.annotation.PostMapping;
-    import org.springframework.web.bind.annotation.RequestBody;
-    import org.springframework.web.bind.annotation.RequestMapping;
-    import org.springframework.web.bind.annotation.RestController;
+    import org.springframework.web.bind.annotation.*;
 
     import java.util.Map;
     import java.util.Optional;
@@ -43,6 +41,9 @@
         PasswordEncoder passwordEncoder;
         @Autowired
         RefreshTokenService refreshTokenService;
+
+        @Value("${testing.app.isProduction}")
+        private boolean isProduction;
 
         @PostMapping("/register")
         public ResponseEntity<Map<String, String>> register(@RequestBody User user) {
@@ -77,7 +78,7 @@
             //Create cookie
             Cookie cookie = new Cookie("access_token", accessToken);
             cookie.setHttpOnly(true);
-            cookie.setSecure(true);
+            cookie.setSecure(isProduction);
             cookie.setPath("/");
             cookie.setMaxAge((int) (jwtUtil.getACCESS_EXPIRATION_TIME() / 1000));
             response.addCookie(cookie);
@@ -85,7 +86,7 @@
             //Refresh token cookie
             Cookie refreshTokenCookie = new Cookie("refresh_token", refreshToken.getToken());
             refreshTokenCookie.setHttpOnly(true);
-            refreshTokenCookie.setSecure(true);
+            refreshTokenCookie.setSecure(isProduction);
             refreshTokenCookie.setPath("/");
             refreshTokenCookie.setMaxAge((int) (jwtUtil.getREFRESH_EXPIRATION_TIME() / 1000));
             response.addCookie(refreshTokenCookie);
@@ -159,7 +160,7 @@
 
             Cookie accessTokenCookie = new Cookie("access_token", newAccessToken);
             accessTokenCookie.setHttpOnly(true);
-            accessTokenCookie.setSecure(true);
+            accessTokenCookie.setSecure(isProduction);
             accessTokenCookie.setPath("/");
             accessTokenCookie.setMaxAge((int) (jwtUtil.getACCESS_EXPIRATION_TIME() / 1000));
             response.addCookie(accessTokenCookie);
@@ -179,7 +180,7 @@
         private void deleteCookie(HttpServletResponse response, String cookieName) {
             Cookie cookie = new Cookie(cookieName, null);
             cookie.setHttpOnly(true);
-            cookie.setSecure(true);
+            cookie.setSecure(isProduction);
             cookie.setPath("/");
             cookie.setMaxAge(0);
             response.addCookie(cookie);
