@@ -11,6 +11,13 @@
 
 ---
 
+## **✔️ What's already done**
+- Jwt auth with access and refresh tokens (cookie)
+- Auto cleanup refresh token table
+- Rate limit (🗒️ need to move it to db and create auto cleanup)
+- 
+---
+
 ## **⭐ Existing endpoints**
 
 <div>
@@ -34,7 +41,6 @@
 
 ## **📝 TODO**
 
-- Rate limiting
 - Caching
 - Logging
 - Documentation
