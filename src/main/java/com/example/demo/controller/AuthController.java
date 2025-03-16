@@ -16,6 +16,7 @@
     import org.springframework.http.ResponseEntity;
     import org.springframework.security.authentication.AuthenticationManager;
     import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+    import org.springframework.security.core.AuthenticationException;
     import org.springframework.security.core.context.SecurityContextHolder;
     import org.springframework.security.core.userdetails.UserDetails;
     import org.springframework.security.crypto.password.PasswordEncoder;
@@ -55,9 +56,14 @@
         @PostMapping("/login")
         public ResponseEntity<Map<String, String>> login(@RequestBody User user, HttpServletResponse response)
                 throws Exception {
-            authenticationManager.authenticate(
-                    new UsernamePasswordAuthenticationToken(user.getUsername(), user.getPassword())
-            );
+            try {
+                authenticationManager.authenticate(
+                        new UsernamePasswordAuthenticationToken(user.getUsername(), user.getPassword())
+                );
+            } catch (AuthenticationException ex) {
+                System.out.println("Ошибка: " + ex);
+                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "user credentials not found"));
+            }
             UserDetails userDetails = userService.loadUserByUsername(user.getUsername());
             User persistedUser = userService.findByUsername(user.getUsername())
                     .orElseThrow(() -> new RuntimeException("User not found"));
