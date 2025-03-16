@@ -2,12 +2,12 @@
 
     import com.example.demo.model.RefreshToken;
     import com.example.demo.model.User;
+    import com.example.demo.service.RateLimitService;
     import com.example.demo.service.RefreshTokenService;
     import com.example.demo.service.UserService;
     import com.example.demo.util.JwtUtil;
     import io.jsonwebtoken.ExpiredJwtException;
     import io.jsonwebtoken.JwtException;
-    import jakarta.servlet.ServletRequest;
     import jakarta.servlet.http.Cookie;
     import jakarta.servlet.http.HttpServletRequest;
     import jakarta.servlet.http.HttpServletResponse;
@@ -21,7 +21,10 @@
     import org.springframework.security.core.context.SecurityContextHolder;
     import org.springframework.security.core.userdetails.UserDetails;
     import org.springframework.security.crypto.password.PasswordEncoder;
-    import org.springframework.web.bind.annotation.*;
+    import org.springframework.web.bind.annotation.PostMapping;
+    import org.springframework.web.bind.annotation.RequestBody;
+    import org.springframework.web.bind.annotation.RequestMapping;
+    import org.springframework.web.bind.annotation.RestController;
 
     import java.util.Map;
     import java.util.Optional;
@@ -38,15 +41,24 @@
         @Autowired
         private UserService userService;
         @Autowired
-        PasswordEncoder passwordEncoder;
+        private PasswordEncoder passwordEncoder;
         @Autowired
-        RefreshTokenService refreshTokenService;
+        private RefreshTokenService refreshTokenService;
+        @Autowired
+        private RateLimitService rateLimitService;
 
         @Value("${testing.app.isProduction}")
         private boolean isProduction;
 
         @PostMapping("/register")
-        public ResponseEntity<Map<String, String>> register(@RequestBody User user) {
+        public ResponseEntity<Map<String, String>> register(@RequestBody User user, HttpServletRequest request) {
+            String ip = request.getRemoteAddr();
+            String key = "register:" + ip;
+            if (!rateLimitService.tryConsume(key)) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(Map.of("error", "Rate limit exceeded"));
+            }
+
             user.setPassword(passwordEncoder.encode(user.getPassword()));
             user.setRoles(Set.of("ROLE_USER"));
             userService.save(user);
@@ -55,15 +67,25 @@
 
 
         @PostMapping("/login")
-        public ResponseEntity<Map<String, String>> login(@RequestBody User user, HttpServletResponse response)
-                throws Exception {
+        public ResponseEntity<Map<String, String>> login(
+                @RequestBody User user,
+                HttpServletResponse response,
+                HttpServletRequest request) throws Exception {
+            String ip = request.getRemoteAddr();
+            String key = "login:" + ip;
+            if (!rateLimitService.tryConsume(key)) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(Map.of("error", "Rate limit exceeded"));
+            }
+
             try {
                 authenticationManager.authenticate(
                         new UsernamePasswordAuthenticationToken(user.getUsername(), user.getPassword())
                 );
             } catch (AuthenticationException ex) {
-                System.out.println("Ошибка: " + ex);
-                return ResponseEntity.status(HttpStatus.NOT_FOUND).body(Map.of("message", "user credentials not found"));
+                return ResponseEntity
+                        .status(HttpStatus.UNAUTHORIZED)
+                        .body(Map.of("message", "Incorrect username or password"));
             }
             UserDetails userDetails = userService.loadUserByUsername(user.getUsername());
             User persistedUser = userService.findByUsername(user.getUsername())
@@ -155,6 +177,12 @@
             refreshTokenService.verifyExpiration(storedRefreshToken.get());
 
             String username = jwtUtil.extractUsername(refreshToken);
+            String key = "refresh:" + username;
+            if (!rateLimitService.tryConsume(key)) {
+                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                        .body(Map.of("error", "Rate limit exceeded"));
+            }
+
             UserDetails userDetails = userService.loadUserByUsername(username);
             String newAccessToken = jwtUtil.generateAccessToken(userDetails);
 
