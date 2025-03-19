@@ -21,10 +21,7 @@
     import org.springframework.security.core.context.SecurityContextHolder;
     import org.springframework.security.core.userdetails.UserDetails;
     import org.springframework.security.crypto.password.PasswordEncoder;
-    import org.springframework.web.bind.annotation.PostMapping;
-    import org.springframework.web.bind.annotation.RequestBody;
-    import org.springframework.web.bind.annotation.RequestMapping;
-    import org.springframework.web.bind.annotation.RestController;
+    import org.springframework.web.bind.annotation.*;
 
     import java.util.Map;
     import java.util.Optional;
@@ -62,7 +59,7 @@
             user.setPassword(passwordEncoder.encode(user.getPassword()));
             user.setRoles(Set.of("ROLE_USER"));
             userService.save(user);
-            return ResponseEntity.ok(Map.of("message", "User created"));
+            return ResponseEntity.status(HttpStatus.CREATED).body(Map.of("message", "User created"));
         }
 
 

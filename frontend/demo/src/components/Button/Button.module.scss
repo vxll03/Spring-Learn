@@ -1,0 +1,23 @@
+@use "../../styles/mixins.scss" as *;
+@use "../../styles/variables.scss" as *;
+
+.button {
+  width: 15vw;
+  height: 5vh;
+
+  color: $light-gray;
+  background-color: transparent;
+  border: 3px solid #444;
+  border-radius: 5px;
+
+  font-size: 1.1em;
+
+  transition: 0.2s;
+  &:hover {
+    border: 3px solid #abda;
+    transform: translateY(-2px);
+  }
+  &:active {
+    transform: translateY(2px);
+  }
+}

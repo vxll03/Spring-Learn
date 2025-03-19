@@ -1,0 +1,9 @@
+@use "../../styles/mixins.scss" as *;
+
+.header {
+  @include flex(row, space-around);
+}
+
+.logout {
+  cursor: pointer;
+}

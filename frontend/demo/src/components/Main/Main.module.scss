@@ -1,0 +1,8 @@
+@use "../../styles/mixins.scss" as *;
+
+.container {
+  @include flex;
+
+  width: 100vw;
+  height: 80vh;
+}
