@@ -5,29 +5,25 @@ import lombok.Data;
 
 @Data
 @Entity
-@Table(name = "military_commissariat")
-public class MilitaryCommissariat {
+@Table(name = "items")
+public class Item {
 
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     Long id;
 
     @Column(nullable = false)
-    String surname;
-    @Column(nullable = false)
-    String name;
-    @Column(nullable = false)
-    String patronymic;
+    private String title;
 
     @Column(nullable = false)
-    String addressStreet;
-    @Column(nullable = false)
-    Integer addressBuilding;
+    private String description;
 
     @Column(nullable = false)
-    String phoneNumber;
+    private float price;
+
+    @Column(nullable = false)
+    private float rating;
 
     @Lob
-    @Column(nullable = true)
     private byte[] photo;
 }

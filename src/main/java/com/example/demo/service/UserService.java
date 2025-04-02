@@ -1,5 +1,6 @@
 package com.example.demo.service;
 
+import com.example.demo.enums.Role;
 import com.example.demo.model.User;
 import com.example.demo.repository.UserRepository;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -9,8 +10,6 @@ import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 
-import java.util.HashMap;
-import java.util.Map;
 import java.util.Optional;
 
 @Service
@@ -21,12 +20,14 @@ public class UserService implements UserDetailsService {
 
     @Override
     public UserDetails loadUserByUsername(String username) throws UsernameNotFoundException {
-        return userRepository.findByUsername(username)
-                .map(user -> new org.springframework.security.core.userdetails.User(
-                        user.getUsername(), user.getPassword(), user.getRoles().stream()
-                        .map(SimpleGrantedAuthority::new)
-                        .toList()))
-                .orElseThrow(() -> new UsernameNotFoundException(String.format("User not found: %s", username)));
+        User user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found"));
+
+        return org.springframework.security.core.userdetails.User.builder()
+                .username(user.getUsername())
+                .password(user.getPassword())
+                .authorities(user.getRole().name())
+                .build();
     }
 
     public void save(User user) {
@@ -35,6 +36,16 @@ public class UserService implements UserDetailsService {
 
     public Optional<User> findByUsername(String username) {
         return userRepository.findByUsername(username);
+    }
+
+    public User findById(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new UsernameNotFoundException("Username not found"));
+    }
+
+    public User setAdmin(User user) {
+        user.setRole(Role.ROLE_ADMIN);
+        return userRepository.save(user);
     }
 }
 
