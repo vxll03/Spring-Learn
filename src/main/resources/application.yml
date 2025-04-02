@@ -1,0 +1,43 @@
+spring:
+  output:
+    ansi:
+      enabled: ALWAYS
+  redis:
+    password: root
+    host: localhost
+    port: 6379  # Redis port
+  jpa:
+    properties:
+      hibernate:
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+    show-sql: true
+    hibernate:
+      ddl-auto: update
+  application:
+    name: demo
+  datasource:
+    password: sa
+    username: postgres
+    url: jdbc:postgresql://localhost:5432/postgres
+
+# Logging configuration
+logging:
+  pattern:
+    console: "%d{yyyy-MM-dd HH:mm:ss} [%thread] %highlight(%-5level) %cyan(%logger{36}) - %msg%n"
+  level:
+    root: INFO
+    org:
+      springframework:
+        web: DEBUG
+        security: DEBUG
+
+# JWT and application-specific settings
+testing:
+  app:
+    access-token-expiration: 900000
+    refresh-token-expiration: 604800000
+    secret: L4togAZqAzuPhKElBWEzOFb73adEs64o
+    isProduction: false
+
+# CORS Settings are now in Security config
+# Rate limits are in own Service
