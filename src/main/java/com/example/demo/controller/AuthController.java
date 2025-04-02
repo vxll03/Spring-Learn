@@ -3,6 +3,7 @@
     import com.example.demo.enums.Role;
     import com.example.demo.model.RefreshToken;
     import com.example.demo.model.User;
+    import com.example.demo.service.DeviceDetectService;
     import com.example.demo.service.RateLimitService;
     import com.example.demo.service.RefreshTokenService;
     import com.example.demo.service.UserService;
@@ -12,6 +13,7 @@
     import jakarta.servlet.http.Cookie;
     import jakarta.servlet.http.HttpServletRequest;
     import jakarta.servlet.http.HttpServletResponse;
+    import org.checkerframework.checker.units.qual.A;
     import org.springframework.beans.factory.annotation.Autowired;
     import org.springframework.beans.factory.annotation.Value;
     import org.springframework.http.HttpStatus;
@@ -19,6 +21,7 @@
     import org.springframework.security.access.prepost.PreAuthorize;
     import org.springframework.security.authentication.AuthenticationManager;
     import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+    import org.springframework.security.core.Authentication;
     import org.springframework.security.core.AuthenticationException;
     import org.springframework.security.core.context.SecurityContextHolder;
     import org.springframework.security.core.userdetails.UserDetails;
@@ -44,6 +47,8 @@
         private RefreshTokenService refreshTokenService;
         @Autowired
         private RateLimitService rateLimitService;
+        @Autowired
+        private DeviceDetectService deviceDetectService;
 
         @Value("${testing.app.isProduction}")
         private boolean isProduction;
@@ -68,7 +73,8 @@
         public ResponseEntity<Map<String, String>> login(
                 @RequestBody User user,
                 HttpServletResponse response,
-                HttpServletRequest request) throws Exception {
+                HttpServletRequest request,
+                @RequestHeader(value = "User-Agent") String userAgent) throws Exception {
             String ip = request.getRemoteAddr();
             String key = "login:" + ip;
             if (!rateLimitService.tryConsume(key)) {
@@ -110,6 +116,8 @@
             refreshTokenCookie.setPath("/");
             refreshTokenCookie.setMaxAge((int) (jwtUtil.getREFRESH_EXPIRATION_TIME() / 1000));
             response.addCookie(refreshTokenCookie);
+
+            deviceDetectService.detect(userAgent, persistedUser);
 
             return ResponseEntity.ok(Map.of(
                     "access_token", accessToken,
