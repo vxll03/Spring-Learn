@@ -13,10 +13,10 @@ public class TokenCleanupScheduler {
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
 
-    @Scheduled(cron = "0 0 0 * * ?")
-    @Transactional
-    public void cleanupExpiredTokens() {
-        Instant now = Instant.now();
-        refreshTokenRepository.deleteByRevokedTrueOrExpireDateBefore(now);
-    }
+//    @Scheduled(cron = "0 0 0 * * ?")
+//    @Transactional
+//    public void cleanupExpiredTokens() {
+//        Instant now = Instant.now();
+//        refreshTokenRepository.deleteByRevokedTrueOrExpireDateBefore(now);
+//    }
 }

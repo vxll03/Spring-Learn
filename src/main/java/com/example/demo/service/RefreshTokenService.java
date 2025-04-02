@@ -4,6 +4,7 @@ import com.example.demo.model.RefreshToken;
 import com.example.demo.model.User;
 import com.example.demo.repository.RefreshTokenRepository;
 import com.example.demo.util.JwtUtil;
+import jakarta.transaction.Transactional;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -12,6 +13,7 @@ import java.util.Optional;
 
 @Service
 public class RefreshTokenService {
+
 
     @Autowired
     RefreshTokenRepository refreshTokenRepository;
@@ -33,11 +35,6 @@ public class RefreshTokenService {
         return refreshTokenRepository.findByToken(token);
     }
 
-    public void revokeToken(RefreshToken token) {
-        token.setRevoked(true);
-        refreshTokenRepository.save(token);
-    }
-
     public void verifyExpiration(RefreshToken token) {
         if (token.getExpireDate().isBefore(Instant.now())) {
             refreshTokenRepository.delete(token);
@@ -51,5 +48,14 @@ public class RefreshTokenService {
         } catch (Exception ex) {
             return false;
         }
+    }
+
+    public void deleteTokenById(Long id) {
+        refreshTokenRepository.deleteById(id);
+    }
+
+    @Transactional
+    public void deleteTokenByUserId(Long userId) {
+        refreshTokenRepository.deleteByUserId(userId);
     }
 }

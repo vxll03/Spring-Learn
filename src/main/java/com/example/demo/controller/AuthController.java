@@ -1,222 +1,57 @@
     package com.example.demo.controller;
 
-    import com.example.demo.enums.Role;
-    import com.example.demo.model.RefreshToken;
     import com.example.demo.model.User;
-    import com.example.demo.service.DeviceDetectService;
-    import com.example.demo.service.RateLimitService;
-    import com.example.demo.service.RefreshTokenService;
-    import com.example.demo.service.UserService;
-    import com.example.demo.util.JwtUtil;
-    import io.jsonwebtoken.ExpiredJwtException;
-    import io.jsonwebtoken.JwtException;
-    import jakarta.servlet.http.Cookie;
+    import com.example.demo.service.AuthenticationService;
     import jakarta.servlet.http.HttpServletRequest;
     import jakarta.servlet.http.HttpServletResponse;
-    import org.checkerframework.checker.units.qual.A;
     import org.springframework.beans.factory.annotation.Autowired;
     import org.springframework.beans.factory.annotation.Value;
-    import org.springframework.http.HttpStatus;
     import org.springframework.http.ResponseEntity;
-    import org.springframework.security.access.prepost.PreAuthorize;
-    import org.springframework.security.authentication.AuthenticationManager;
-    import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
-    import org.springframework.security.core.Authentication;
-    import org.springframework.security.core.AuthenticationException;
-    import org.springframework.security.core.context.SecurityContextHolder;
-    import org.springframework.security.core.userdetails.UserDetails;
-    import org.springframework.security.crypto.password.PasswordEncoder;
     import org.springframework.web.bind.annotation.*;
-
-    import java.util.Map;
-    import java.util.Optional;
 
     @RestController
     @RequestMapping("/api/auth")
     public class AuthController {
 
         @Autowired
-        private AuthenticationManager authenticationManager;
-        @Autowired
-        private JwtUtil jwtUtil;
-        @Autowired
-        private UserService userService;
-        @Autowired
-        private PasswordEncoder passwordEncoder;
-        @Autowired
-        private RefreshTokenService refreshTokenService;
-        @Autowired
-        private RateLimitService rateLimitService;
-        @Autowired
-        private DeviceDetectService deviceDetectService;
+        AuthenticationService authenticationService;
 
         @Value("${testing.app.isProduction}")
         private boolean isProduction;
 
         @PostMapping("/register")
-        public ResponseEntity<Map<String, String>> register(@RequestBody User user, HttpServletRequest request) {
-            String ip = request.getRemoteAddr();
-            String key = "register:" + ip;
-            if (!rateLimitService.tryConsume(key)) {
-                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                        .body(Map.of("error", "Rate limit exceeded"));
-            }
+        public ResponseEntity<?> register(
+                @RequestBody User user,
+                HttpServletRequest request) {
 
-            user.setPassword(passwordEncoder.encode(user.getPassword()));
-            user.setRole(Role.ROLE_USER);
-            userService.save(user);
-            return ResponseEntity.ok(Map.of("message", "User created"));
+            return authenticationService.register(user, request);
         }
 
-
         @PostMapping("/login")
-        public ResponseEntity<Map<String, String>> login(
+        public ResponseEntity<?> login(
                 @RequestBody User user,
                 HttpServletResponse response,
                 HttpServletRequest request,
                 @RequestHeader(value = "User-Agent") String userAgent) throws Exception {
-            String ip = request.getRemoteAddr();
-            String key = "login:" + ip;
-            if (!rateLimitService.tryConsume(key)) {
-                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                        .body(Map.of("error", "Rate limit exceeded"));
-            }
 
-            try {
-                authenticationManager.authenticate(
-                        new UsernamePasswordAuthenticationToken(user.getUsername(), user.getPassword())
-                );
-            } catch (AuthenticationException ex) {
-                return ResponseEntity
-                        .status(HttpStatus.UNAUTHORIZED)
-                        .body(Map.of("message", "Incorrect username or password"));
-            }
-            UserDetails userDetails = userService.loadUserByUsername(user.getUsername());
-            User persistedUser = userService.findByUsername(user.getUsername())
-                    .orElseThrow(() -> new RuntimeException("User not found"));
-
-            String accessToken = jwtUtil.generateAccessToken(userDetails);
-            RefreshToken refreshToken = refreshTokenService.
-                    createRefreshToken(persistedUser, jwtUtil.generateRefreshToken(userDetails));
-            System.out.println("access token = " + accessToken);
-            System.out.println("refresh token = " + refreshToken);
-
-            //Create cookie
-            Cookie cookie = new Cookie("access_token", accessToken);
-            cookie.setHttpOnly(true);
-            cookie.setSecure(isProduction);
-            cookie.setPath("/");
-            cookie.setMaxAge((int) (jwtUtil.getACCESS_EXPIRATION_TIME() / 1000));
-            response.addCookie(cookie);
-
-            //Refresh token cookie
-            Cookie refreshTokenCookie = new Cookie("refresh_token", refreshToken.getToken());
-            refreshTokenCookie.setHttpOnly(true);
-            refreshTokenCookie.setSecure(isProduction);
-            refreshTokenCookie.setPath("/");
-            refreshTokenCookie.setMaxAge((int) (jwtUtil.getREFRESH_EXPIRATION_TIME() / 1000));
-            response.addCookie(refreshTokenCookie);
-
-            deviceDetectService.detect(userAgent, persistedUser);
-
-            return ResponseEntity.ok(Map.of(
-                    "access_token", accessToken,
-                    "refresh_token", refreshToken.getToken()
-            ));
+            return authenticationService.login(user, userAgent, request, response);
         }
 
         @PostMapping("/logout")
-        public ResponseEntity<Map<String, String>> logout(
+        public ResponseEntity<?> logout(
                 HttpServletRequest request,
                 HttpServletResponse response) {
-            SecurityContextHolder.clearContext();
 
-            String refreshToken = null;
-            Cookie[] cookies = request.getCookies();
-            if (cookies != null) {
-                for (Cookie cookie : cookies) {
-                    if (cookie.getName().equals("refresh_token")) {
-                        refreshToken = cookie.getValue();
-                        break;
-                    }
-                }
-            }
-
-            if (refreshToken != null) {
-                Optional<RefreshToken> tokenOpt = refreshTokenService.findByToken(refreshToken);
-                tokenOpt.ifPresent(token -> refreshTokenService.revokeToken(token));
-            }
-
-            deleteCookie(response, "access_token");
-            deleteCookie(response, "refresh_token");
-
-            return ResponseEntity.ok(Map.of("message", "Logged out successfully"));
+            return authenticationService.logout(request, response);
         }
 
         @PostMapping("/refresh")
-        public ResponseEntity<Map<String, String>> refreshToken(
+        public ResponseEntity<?> refreshToken(
                 HttpServletRequest request,
                 HttpServletResponse response) {
-            String refreshToken = null;
-            Cookie[] cookies = request.getCookies();
-            if (cookies != null) {
-                for (Cookie cookie : cookies) {
-                    if (cookie.getName().equals("refresh_token")) {
-                        refreshToken = cookie.getValue();
-                        break;
-                    }
-                }
-            }
 
-            if (refreshToken == null) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Refresh token is missing"));
-            }
-
-            Optional<RefreshToken> storedRefreshToken = refreshTokenService.findByToken(refreshToken);
-            if (storedRefreshToken.isEmpty()) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Invalid refresh token"));
-            }
-
-            if (!refreshTokenService.isTokenValid(refreshToken)) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(Map.of("error", "Invalid refresh token"));
-            }
-            refreshTokenService.verifyExpiration(storedRefreshToken.get());
-
-            String username = jwtUtil.extractUsername(refreshToken);
-            String key = "refresh:" + username;
-            if (!rateLimitService.tryConsume(key)) {
-                return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
-                        .body(Map.of("error", "Rate limit exceeded"));
-            }
-
-            UserDetails userDetails = userService.loadUserByUsername(username);
-            String newAccessToken = jwtUtil.generateAccessToken(userDetails);
-
-            Cookie accessTokenCookie = new Cookie("access_token", newAccessToken);
-            accessTokenCookie.setHttpOnly(true);
-            accessTokenCookie.setSecure(isProduction);
-            accessTokenCookie.setPath("/");
-            accessTokenCookie.setMaxAge((int) (jwtUtil.getACCESS_EXPIRATION_TIME() / 1000));
-            response.addCookie(accessTokenCookie);
-
-            try {
-                return ResponseEntity.ok(Map.of("access_token", newAccessToken));
-
-            } catch (ExpiredJwtException ex) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(Map.of("error", "Refresh token has expired"));
-            } catch (JwtException | IllegalArgumentException ex) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                        .body(Map.of("error", "Invalid refresh token"));
-            }
+            return authenticationService.refresh(request, response);
         }
 
-        private void deleteCookie(HttpServletResponse response, String cookieName) {
-            Cookie cookie = new Cookie(cookieName, null);
-            cookie.setHttpOnly(true);
-            cookie.setSecure(isProduction);
-            cookie.setPath("/");
-            cookie.setMaxAge(0);
-            response.addCookie(cookie);
-        }
+
     }

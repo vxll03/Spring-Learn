@@ -2,8 +2,6 @@ package com.example.demo.model;
 
 import jakarta.persistence.*;
 import lombok.Data;
-import org.hibernate.annotations.CreationTimestamp;
-import org.hibernate.annotations.UpdateTimestamp;
 
 import java.time.Instant;
 
@@ -25,14 +23,4 @@ public class RefreshToken {
 
     @Column(nullable = false)
     Instant expireDate;
-
-    @Column(nullable = false)
-    Boolean revoked = false;
-
-    @CreationTimestamp
-    @Column(updatable = false)
-    Instant createdAt;
-
-    @UpdateTimestamp
-    Instant updatedAt;
 }
